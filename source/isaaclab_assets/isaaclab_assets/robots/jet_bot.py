@@ -5,11 +5,10 @@
 
 """Configuration for a simple Cartpole robot."""
 
-
-import omni.isaac.lab.sim as sim_utils
-from omni.isaac.lab.actuators import ImplicitActuatorCfg
-from omni.isaac.lab.assets import ArticulationCfg
-from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 ##
 # Configuration
@@ -17,7 +16,8 @@ from omni.isaac.lab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 JETBOT_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
-        usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Jetbot/jetbot.usd",
+        
+        usd_path=f"omniverse://localhost/NVIDIA/Assets/Isaac/4.2/Isaac/Robots/Jetbot/jetbot.usd",
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             rigid_body_enabled=True,
             max_linear_velocity=1000.0,
@@ -34,7 +34,7 @@ JETBOT_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.3)
+        pos=(0.0, 0.0, 0.1)
     ),
     actuators={
         "left_wheel_joint": ImplicitActuatorCfg(
