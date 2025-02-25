@@ -110,12 +110,17 @@ class RewardsCfg:
         weight=1.0,
         params={"asset_cfg": SceneEntityCfg("robot"), "target": torch.tensor([0.0, 3.0, 0.0], device="cuda")},
     )
-    # # (4) Shaping tasks: change in velocity
+    # (4) Shaping tasks: angle to goal
+    # angle_to_goal = RewTerm(
+    #     func=mdp.bad_orientation_penalised,
+    #     weight=-0.1
+    # )
+    # (5) Shaping tasks: change in velocity
     # cart_vel = RewTerm(
     #     func=mdp.action_rate_l2,
     #     weight=1.0,
     # )
-    # # (5) Shaping tasks: lower pole angular velocity
+    # # (6) Shaping tasks: lower pole angular velocity
     # pole_vel = RewTerm(
     #     func=mdp.joint_vel_l1,
     #     weight=-0.005,
@@ -141,12 +146,20 @@ class TerminationsCfg:
 
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # # (2) Cart out of bounds
+    # time_out = DoneTerm(func=mdp.time_out_penalised, time_out=True)
+    # (2) JetBot out of bounds
     jet_bot_out_of_bounds = DoneTerm(
         # TODO:
         func=mdp.joint_pos_out_of_triangle_limit,
         params={"asset_cfg": SceneEntityCfg("robot"), "distance": 3.0},
     )
+    # (3) JetBot orientation out of bounds
+    # angle_out_of_bounds = DoneTerm(
+    #     func=mdp.bad_orientation_penalised,
+    #     params={"limit_angle": math.radians(math.pi/2), 
+    #             "asset_cfg": SceneEntityCfg("robot")
+    #     },
+    # )
 
 
 ##

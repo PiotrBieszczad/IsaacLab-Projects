@@ -40,3 +40,14 @@ def proximity_to_point_l2(
     # Compute L2 squared distance to the target point
     return torch.sum(torch.square(current_pos - target), dim=1)
 
+
+def orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+    """Penalize facing wrong direction base orientation using L2 squared kernel.
+
+    This is computed by penalizing the z-components of the projected gravity vector.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    return torch.sum(torch.square(asset.data.projected_gravity_b[:, 2]), dim=1)
+
+

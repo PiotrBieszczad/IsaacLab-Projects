@@ -46,6 +46,21 @@ def joint_pos_out_of_triangle_limit(
     # print("x:", x, "upper_limit_x:" distance, "y:", y, "upper_y_limit:", upper_y_limit)
     # Check violations
     out_of_x_limit = x > distance
-    out_of_y_limit = (y < -1) | (y > upper_y_limit + 1)
-    return torch.logical_or(out_of_x_limit, out_of_y_limit)
+    out_of_y_limit = (y < -0.5) | (y > upper_y_limit + 0.2)
+    return -1 if torch.logical_or(out_of_x_limit, out_of_y_limit) else 0
 
+
+def time_out_penalised(env: ManagerBasedRLEnv) -> torch.Tensor:
+    """Terminate the episode when the episode length exceeds the maximum episode length."""
+    return -1 if env.episode_length_buf >= env.max_episode_length else 0
+
+def bad_orientation_penalised(
+    env: ManagerBasedRLEnv, limit_angle: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Terminate when the asset's orientation is too far from the desired orientation limits.
+
+    This is computed by checking the angle between the projected gravity vector and the z-axis.
+    """
+    # extract the used quantities (to enable type-hinting)
+    asset: RigidObject = env.scene[asset_cfg.name]
+    return -1 if torch.acos(-asset.data.projected_gravity_b[:, 2]).abs() > limit_angle else 0
