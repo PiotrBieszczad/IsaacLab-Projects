@@ -39,16 +39,13 @@ def joint_pos_out_of_triangle_limit(
     asset: Articulation = env.scene[asset_cfg.name]
     if asset_cfg.joint_ids is None:
         raise ValueError("Joint not defined.")
-
-    joint_pos = asset.data.joint_pos[:, asset_cfg.joint_ids]
-    x, y = joint_pos[:, 0], joint_pos[:, 1]
+    x, y = asset.data.root_pos_w[0, 0], asset.data.root_pos_w[0, 1]
 
     # Compute triangle limits
     upper_y_limit = torch.minimum(x + distance, -x + distance)
-
+    # print("x:", x, "upper_limit_x:" distance, "y:", y, "upper_y_limit:", upper_y_limit)
     # Check violations
     out_of_x_limit = x > distance
-    out_of_y_limit = (y < 0) | (y > upper_y_limit)
-
+    out_of_y_limit = (y < -1) | (y > upper_y_limit + 1)
     return torch.logical_or(out_of_x_limit, out_of_y_limit)
 

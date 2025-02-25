@@ -29,7 +29,7 @@ def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneE
 
 def proximity_to_point_l2(
     env: ManagerBasedRLEnv,
-    target: torch.Tensor = torch.tensor([0.0, 3.0, 0.0]),
+    target: torch.Tensor = torch.tensor([0.0, 3.0, 0.0], device="cuda"),
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
     """Penalize distance from a target point (0,3,0) using L2 squared norm."""

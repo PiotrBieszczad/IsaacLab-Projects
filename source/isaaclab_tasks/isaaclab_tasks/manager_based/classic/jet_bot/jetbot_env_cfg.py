@@ -4,7 +4,8 @@ from isaaclab.app import AppLauncher
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on creating a cartpole base environment.")
-parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
+parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
+parser.add_argument("--task", type=str, default="Isaac-JetBot-v0", help="Task to run.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -14,7 +15,7 @@ args_cli = parser.parse_args()
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
-
+ 
 
 
 # Copyright (c) 2022-2025, The Isaac Lab Project Developers.
@@ -36,8 +37,12 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 import torch
+import gym
+import isaaclab_tasks 
 
 import isaaclab_tasks.manager_based.classic.jet_bot.mdp as mdp
+from isaaclab_tasks.utils import parse_env_cfg
+
 
 ##
 # Pre-defined configs
@@ -90,8 +95,11 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
+        # TODO: Position of robot
         base_lin_vel = ObsTerm(mdp.base_lin_vel)
         base_ang_vel = ObsTerm(mdp.base_ang_vel)
+        base_y_pos = ObsTerm(mdp.base_pos)
+        goal_pos = ObsTerm(mdp.root_pos_w)
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -107,7 +115,7 @@ class EventCfg:
     # TODO: Reset robot properly
     # reset
     reset_jet_bot_position = EventTerm(
-        func=mdp.reset_scene_to_default,
+        func=mdp.reset_scene_to_default_with_x_offset,
         mode="reset"
     )
 
@@ -115,31 +123,22 @@ class EventCfg:
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
-    # reward scales
-    # # TODO: Reward scales
-    # rew_scale_alive = 1.0
-    # rew_scale_terminated = 1.0
-    # rew_scale_robot_velocity = 1.0
-    # rew_scale_robot_angle = 1.0 # -0.01
-    # rew_scale_robot_proximity = 1.0 # -0.005
-    # rew_scale_action_rate = 1.0
-
 
     # (1) Constant running reward
-    alive = RewTerm(func=mdp.is_alive, weight=1.0)
-    # # (2) Failure penalty
-    # terminating = RewTerm(func=mdp.is_terminated, weight=rew_scale_terminated)
-    # # (3) Primary task: proximity to goal
-    # # TODO: Robot centre
-    # pole_pos = RewTerm(
-    #     func=mdp.proximity_to_point_l2,
-    #     weight=rew_scale_robot_proximity,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=[""]), "target": torch.tensor([0.0, 3.0, 0.0])},
-    # )
+    alive = RewTerm(func=mdp.is_alive, weight=-0.1)
+    # (2) Failure penalty
+    terminating = RewTerm(func=mdp.is_terminated, weight=-1.0)
+    # (3) Primary task: proximity to goal
+    # TODO: Robot centre
+    goal_proximity = RewTerm(
+        func=mdp.proximity_to_point_l2,
+        weight=1.0,
+        params={"asset_cfg": SceneEntityCfg("robot"), "target": torch.tensor([0.0, 3.0, 0.0], device="cuda")},
+    )
     # # (4) Shaping tasks: change in velocity
     # cart_vel = RewTerm(
     #     func=mdp.action_rate_l2,
-    #     weight=rew_scale_action_rate,
+    #     weight=1.0,
     # )
     # # (5) Shaping tasks: lower pole angular velocity
     # pole_vel = RewTerm(
@@ -167,12 +166,12 @@ class TerminationsCfg:
 
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # (2) Cart out of bounds
-    # cart_out_of_bounds = DoneTerm(
-    #     # TODO:
-    #     func=mdp.joint_pos_out_of_triangle_limit,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "distance": 3.0},
-    # )
+    # # (2) Cart out of bounds
+    jet_bot_out_of_bounds = DoneTerm(
+        # TODO:
+        func=mdp.joint_pos_out_of_triangle_limit,
+        params={"asset_cfg": SceneEntityCfg("robot"), "distance": 3.0},
+    )
 
 
 ##
@@ -198,7 +197,7 @@ class JetBotEnvCfg(ManagerBasedRLEnvCfg):
         """Post initialization."""
         # general settings
         self.decimation = 2
-        self.episode_length_s = 5
+        self.episode_length_s = 10
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings
@@ -207,33 +206,61 @@ class JetBotEnvCfg(ManagerBasedRLEnvCfg):
 
 
 def main():
-    """Main function."""
+    """Random actions agent with Isaac Lab environment."""
+    print("checkpoint 1")
     # create environment configuration
-    env_cfg = JetBotEnvCfg()
-    env_cfg.scene.num_envs = args_cli.num_envs
-    # setup RL environment
-    env = ManagerBasedRLEnv(cfg=env_cfg)
+    env_cfg = parse_env_cfg(
+        args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs
+    )
+    print("checkpoint 2")
+    # create environment
+    env = gym.make(args_cli.task, cfg=env_cfg)
 
-    # simulate physics
-    count = 0
+    # print info (this is vectorized environment)
+    print(f"[INFO]: Gym observation space: {env.observation_space}")
+    print(f"[INFO]: Gym action space: {env.action_space}")
+    # reset environment
+    env.reset()
+    # simulate environment
     while simulation_app.is_running():
+        # run everything in inference mode
         with torch.inference_mode():
-            # reset
-            if count % 300 == 0:
-                count = 0
-                env.reset()
-                print("-" * 80)
-                print("[INFO]: Resetting environment...")
-            # sample random actions
-            joint_efforts = torch.randn_like(env.action_manager.action)
-            # step the environment
-            obs, rew, terminated, truncated, info = env.step(joint_efforts)
-            # print current orientation of pole
-            # update counter
-            count += 1
+            # sample actions from -1 to 1
+            actions = 2 * torch.rand(env.action_space.shape, device=env.unwrapped.device) - 1
+            # apply actions
+            env.step(actions)
 
-    # close the environment
+    # close the simulator
     env.close()
+        
+# def main():
+#     """Main function."""
+#     # create environment configuration
+#     env_cfg = JetBotEnvCfg()
+#     env_cfg.scene.num_envs = args_cli.num_envs
+#     # setup RL environment
+#     env = ManagerBasedRLEnv(cfg=env_cfg)
+
+#     # simulate physics
+#     count = 0
+#     while simulation_app.is_running():
+#         with torch.inference_mode():
+#             # reset
+#             if count % 300 == 0:
+#                 count = 0
+#                 env.reset()
+#                 print("-" * 80)
+#                 print("[INFO]: Resetting environment...")
+#             # sample random actions
+#             joint_efforts = torch.randn_like(env.action_manager.action)
+#             # step the environment
+#             obs, rew, terminated, truncated, info = env.step(joint_efforts)
+#             # print current orientation of pole
+#             # update counter
+#             count += 1
+
+#     # close the environment
+#     env.close()
 
 
 if __name__ == "__main__":

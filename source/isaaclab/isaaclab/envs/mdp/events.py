@@ -938,6 +938,42 @@ def reset_scene_to_default(env: ManagerBasedEnv, env_ids: torch.Tensor):
         deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
 
 
+def reset_scene_to_default_with_x_offset(env: ManagerBasedEnv, env_ids: torch.Tensor, random_offset_range: float = 1.0):
+    """Reset the scene to the default state with a randomized offset along the x-axis."""
+    # Generate a random offset for each environment instance along the x-axis
+    random_offsets = torch.rand_like(env_ids.float()) * 2 * random_offset_range - random_offset_range 
+
+    # rigid bodies
+    for rigid_object in env.scene.rigid_objects.values():
+        # obtain default and deal with the offset for env origins
+        default_root_state = rigid_object.data.default_root_state[env_ids].clone()
+        default_root_state[:, 0:3] += env.scene.env_origins[env_ids]
+        default_root_state[:, 0:3][:, 0] += random_offsets  
+        # set into the physics simulation
+        rigid_object.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
+        rigid_object.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
+
+    # articulations
+    for articulation_asset in env.scene.articulations.values():
+        # obtain default and deal with the offset for env origins
+        default_root_state = articulation_asset.data.default_root_state[env_ids].clone()
+        default_root_state[:, 0:3][:, 0] += env.scene.env_origins[env_ids][:, 0] + random_offsets  # Apply random offset along the x-axis
+        # set into the physics simulation
+        articulation_asset.write_root_pose_to_sim(default_root_state[:, :7], env_ids=env_ids)
+        articulation_asset.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids=env_ids)
+        # obtain default joint positions
+        default_joint_pos = articulation_asset.data.default_joint_pos[env_ids].clone()
+        default_joint_vel = articulation_asset.data.default_joint_vel[env_ids].clone()
+        # set into the physics simulation
+        articulation_asset.write_joint_state_to_sim(default_joint_pos, default_joint_vel, env_ids=env_ids)
+
+    # deformable objects
+    for deformable_object in env.scene.deformable_objects.values():
+        # obtain default and set into the physics simulation
+        nodal_state = deformable_object.data.default_nodal_state_w[env_ids].clone()
+        deformable_object.write_nodal_state_to_sim(nodal_state, env_ids=env_ids)
+
+
 """
 Internal helper functions.
 """
