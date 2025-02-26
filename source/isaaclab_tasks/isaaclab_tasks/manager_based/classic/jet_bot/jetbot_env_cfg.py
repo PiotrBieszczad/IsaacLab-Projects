@@ -100,15 +100,15 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # (1) Constant running reward
-    alive = RewTerm(func=mdp.is_alive, weight=-0.1)
+    # alive = RewTerm(func=mdp.is_alive, weight=-0.1)
     # (2) Failure penalty
     terminating = RewTerm(func=mdp.is_terminated, weight=-1.0)
     # (3) Primary task: proximity to goal
     # TODO: Robot centre
     goal_proximity = RewTerm(
         func=mdp.proximity_to_point_l2,
-        weight=1.0,
-        params={"asset_cfg": SceneEntityCfg("robot"), "target": torch.tensor([0.0, 3.0, 0.0], device="cuda")},
+        weight=-1.0,
+        params={"asset_cfg": SceneEntityCfg("robot")},
     )
     # (4) Shaping tasks: angle to goal
     # angle_to_goal = RewTerm(
