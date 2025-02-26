@@ -1,7 +1,7 @@
 import math
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv, ManagerBasedEnvCfg, ManagerBasedEnv
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -31,7 +31,7 @@ from isaaclab_assets.robots.jet_bot import JETBOT_CFG
 
 
 @configclass
-class CartpoleSceneCfg(InteractiveSceneCfg):
+class JetBotSceneCfg(InteractiveSceneCfg):
     """Configuration for a cart-pole scene."""
 
     # ground plane
@@ -42,6 +42,20 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
 
     # cartpole
     robot: ArticulationCfg = JETBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+
+    # Spawn mesh cuboid
+    goal_cone = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/GoalCone",
+        spawn=sim_utils.MeshConeCfg(radius=0.1, height=0.2),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(1.0, 0.0, 0.0)),
+    )
+
+    # Spawn mesh cuboid
+    bounds = AssetBaseCfg(
+        prim_path="{ENV_REGEX_NS}/RoobotBounds",
+        spawn=sim_utils.MeshCuboidCfg(size=(1, 1, 0.001)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0, 0.001), rot=( 0.3826834, 0, 0, 0.9238795 )),
+    )
 
     # lights
     dome_light = AssetBaseCfg(
@@ -70,11 +84,13 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         # observation terms (order preserved)
-        # TODO: Position of robot
-        base_lin_vel = ObsTerm(mdp.base_lin_vel)
-        base_ang_vel = ObsTerm(mdp.base_ang_vel)
-        base_y_pos = ObsTerm(mdp.base_pos)
-        goal_pos = ObsTerm(mdp.root_pos_w)
+        base_pos = ObsTerm(mdp.root_pos_w)
+        base_orient = ObsTerm(mdp.root_quat_w)
+        goal_pos = ObsTerm(mdp.goal_pos)
+
+        # TODO: Adjust the velocities
+        # base_lin_vel = ObsTerm(mdp.base_lin_vel)
+        # base_ang_vel = ObsTerm(mdp.base_ang_vel)
 
         def __post_init__(self) -> None:
             self.enable_corruption = False
@@ -87,44 +103,37 @@ class ObservationsCfg:
 @configclass
 class EventCfg:
     """Configuration for events."""
-    # TODO: Reset robot properly
     # reset
     reset_jet_bot_position = EventTerm(
-        func=mdp.reset_scene_to_default_with_x_offset,
-        mode="reset"
+        func=mdp.reset_scene_to_default,
+        mode="reset",
     )
 
 
 @configclass
 class RewardsCfg:
     """Reward terms for the MDP."""
-
     # (1) Constant running reward
-    # alive = RewTerm(func=mdp.is_alive, weight=-0.1)
+    # alive = RewTerm(func=mdp.is_alive, weight=0.1)
     # (2) Failure penalty
-    terminating = RewTerm(func=mdp.is_terminated, weight=-1.0)
+    terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
     # (3) Primary task: proximity to goal
-    # TODO: Robot centre
     goal_proximity = RewTerm(
         func=mdp.proximity_to_point_l2,
-        weight=-1.0,
+        weight=1.0,
         params={"asset_cfg": SceneEntityCfg("robot")},
     )
+    # TODO: Add this for faster learning
     # (4) Shaping tasks: angle to goal
     # angle_to_goal = RewTerm(
-    #     func=mdp.bad_orientation_penalised,
+    #     func=mdp.orientation,
     #     weight=-0.1
     # )
+    # TODO: Add this for smoothness
     # (5) Shaping tasks: change in velocity
     # cart_vel = RewTerm(
     #     func=mdp.action_rate_l2,
     #     weight=1.0,
-    # )
-    # # (6) Shaping tasks: lower pole angular velocity
-    # pole_vel = RewTerm(
-    #     func=mdp.joint_vel_l1,
-    #     weight=-0.005,
-    #     params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
     # )
 
 # NOTE: This can be used as an observation to the agent. I.e telling the agent what to do.
@@ -149,17 +158,16 @@ class TerminationsCfg:
     # time_out = DoneTerm(func=mdp.time_out_penalised, time_out=True)
     # (2) JetBot out of bounds
     jet_bot_out_of_bounds = DoneTerm(
-        # TODO:
         func=mdp.joint_pos_out_of_triangle_limit,
-        params={"asset_cfg": SceneEntityCfg("robot"), "distance": 3.0},
+        params={"asset_cfg": SceneEntityCfg("robot"), "distance": 1.0},
     )
     # (3) JetBot orientation out of bounds
-    # angle_out_of_bounds = DoneTerm(
-    #     func=mdp.bad_orientation_penalised,
-    #     params={"limit_angle": math.radians(math.pi/2), 
-    #             "asset_cfg": SceneEntityCfg("robot")
-    #     },
-    # )
+    angle_out_of_bounds = DoneTerm(
+        func=mdp.bad_orientation,
+        params={"limit_angle": math.radians(90), 
+                "asset_cfg": SceneEntityCfg("robot")
+        },
+    )
 
 
 ##
@@ -171,7 +179,7 @@ class TerminationsCfg:
 class JetBotEnvCfg(ManagerBasedRLEnvCfg):
     """Configuration for the cartpole environment."""
     # Scene settings
-    scene: CartpoleSceneCfg = CartpoleSceneCfg(num_envs=4096, env_spacing=4.0)
+    scene: JetBotSceneCfg = JetBotSceneCfg(num_envs=4096, env_spacing=1.5)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

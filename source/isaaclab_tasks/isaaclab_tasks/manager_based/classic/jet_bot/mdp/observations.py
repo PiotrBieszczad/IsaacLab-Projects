@@ -24,8 +24,7 @@ if TYPE_CHECKING:
 Root state.
 """
 
-def base_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Root height in the simulation world frame."""
-    # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.root_pos_w[:, 0:3]
+def goal_pos(env: ManagerBasedEnv) -> torch.Tensor:
+    """Asset root position in the environment frame."""
+    goal = env.scene.env_origins[:, 0:3] + torch.tensor([1.0, 0.0, 0.0], device=env.device)
+    return goal

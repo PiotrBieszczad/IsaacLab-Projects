@@ -39,22 +39,20 @@ def joint_pos_out_of_triangle_limit(
     asset: Articulation = env.scene[asset_cfg.name]
     if asset_cfg.joint_ids is None:
         raise ValueError("Joint not defined.")
-    x, y = asset.data.root_pos_w[0, 0], asset.data.root_pos_w[0, 1]
-
+    x = asset.data.root_pos_w[:, 0] - env.scene.env_origins[:, 0]
+    y = asset.data.root_pos_w[:, 1] - env.scene.env_origins[:, 1]
     # Compute triangle limits
     upper_y_limit = torch.minimum(x + distance, -x + distance)
     # print("x:", x, "upper_limit_x:" distance, "y:", y, "upper_y_limit:", upper_y_limit)
     # Check violations
-    out_of_x_limit = x > distance
-    out_of_y_limit = (y < -0.5) | (y > upper_y_limit + 0.2)
-    return -1 if torch.logical_or(out_of_x_limit, out_of_y_limit) else 0
+    out_of_x_limit = y > distance
+    out_of_y_limit = (x < -0.2) | (x > upper_y_limit + 0.2)
+    terminate = torch.logical_or(out_of_x_limit, out_of_y_limit)
+    # if terminate.any():
+    #     print("x:", x, "upper_limit_x:", distance, "y:", y, "upper_y_limit:", upper_y_limit)
+    return terminate
 
-
-def time_out_penalised(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Terminate the episode when the episode length exceeds the maximum episode length."""
-    return -1 if env.episode_length_buf >= env.max_episode_length else 0
-
-def bad_orientation_penalised(
+def bad_orientation(
     env: ManagerBasedRLEnv, limit_angle: float, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
     """Terminate when the asset's orientation is too far from the desired orientation limits.
@@ -63,4 +61,10 @@ def bad_orientation_penalised(
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return -1 if torch.acos(-asset.data.projected_gravity_b[:, 2]).abs() > limit_angle else 0
+    heading = asset.data.heading_w_rev.abs()
+    heading_adjusted = (heading).abs()
+    terminate = heading > limit_angle
+    # if terminate.any():
+    #     print('fail')
+    #     print("angle:", heading_adjusted, "limit_angle:", limit_angle)
+    return terminate

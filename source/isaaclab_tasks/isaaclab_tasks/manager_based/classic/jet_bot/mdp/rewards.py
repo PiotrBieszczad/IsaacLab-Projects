@@ -1,8 +1,3 @@
-# Copyright (c) 2022-2025, The Isaac Lab Project Developers.
-# All rights reserved.
-#
-# SPDX-License-Identifier: BSD-3-Clause
-
 from __future__ import annotations
 
 import torch
@@ -31,24 +26,31 @@ def proximity_to_point_l2(
     env: ManagerBasedRLEnv,
     asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
 ) -> torch.Tensor:
-    """Penalize distance from a target point (0,3,0) using L2 squared norm."""
-    
-    target = torch.tensor([0.0, 3.0, 0.0], device=env.device)
-
     asset: RigidObject = env.scene[asset_cfg.name]
-    current_pos = asset.data.root_pos_w  # (x, y, z) world position
     
+    
+    target =  torch.tensor(env.scene.env_origins + torch.tensor([0.0, -1.0, 0.0], device=env.device))
+    # TODO: Remove print
+    # print('origins', env.scene.env_origins)
+    # print('goal', target)
+
+    current_pos = asset.data.root_pos_w  # (x, y, z) world position
+    # print('current_pos', current_pos)
+    distance = torch.sum(torch.square(current_pos - target), dim=1)
+    # print('distance', distance)
     # Compute L2 squared distance to the target point
-    return torch.sum(torch.square(current_pos - target), dim=1)
+    return 2 - distance
 
+def orientation(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
+) -> torch.Tensor:
+    """Terminate when the asset's orientation is too far from the desired orientation limits.
 
-def orientation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
-    """Penalize facing wrong direction base orientation using L2 squared kernel.
-
-    This is computed by penalizing the z-components of the projected gravity vector.
+    This is computed by checking the angle between the projected gravity vector and the z-axis.
     """
     # extract the used quantities (to enable type-hinting)
     asset: RigidObject = env.scene[asset_cfg.name]
-    return torch.sum(torch.square(asset.data.projected_gravity_b[:, 2]), dim=1)
-
+    orientation_rew = torch.acos(-asset.data.projected_gravity_b[:, 2]).abs()
+    # print(orientation_rew)
+    return orientation_rew
 

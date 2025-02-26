@@ -423,6 +423,19 @@ class ArticulationData:
         """
         forward_w = math_utils.quat_apply(self.root_link_quat_w, self.FORWARD_VEC_B)
         return torch.atan2(forward_w[:, 1], forward_w[:, 0])
+    
+        
+    @property
+    def heading_w_rev(self):
+        """Yaw heading of the base frame (in radians). Shape is (num_instances,).
+
+        Note:
+            This quantity is computed by assuming that the forward-direction of the base
+            frame is along x-direction, i.e. :math:`(1, 0, 0)`.
+        """
+        forward_w = math_utils.quat_apply(self.root_link_quat_w, torch.tensor((-1.0, 0.0, 0.0), device=self.device).repeat(self._root_physx_view.count, 1))
+        return torch.atan2(forward_w[:, 1], forward_w[:, 0])
+
 
     @property
     def joint_pos(self):

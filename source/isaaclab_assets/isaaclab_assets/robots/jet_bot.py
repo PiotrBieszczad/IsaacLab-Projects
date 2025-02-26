@@ -34,7 +34,8 @@ JETBOT_CFG = ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.1)
+        pos=(0.0, 0.0, 0.1),
+        rot=(0, 0.0, 0.0, 1.0),
     ),
     actuators={
         "left_wheel_joint": ImplicitActuatorCfg(
